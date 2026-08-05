@@ -47,12 +47,13 @@ const PHASES_MM = [
   { m: 's', t: 5000 }, { m: 'c', t: 9e8 },
 ];
 
-/* the four garbage collectors — kind drives the chase target */
+/* the four garbage collectors — kind drives the chase target.
+   pk indexes the throttled palette, so the draw loop never touches getComputedStyle */
 const GCS_MM = [
-  { key: 'CHASER',   kind: 'lock',   cv: '--bad',  fb: '#ff5d6c', sc: [17, 1],  pen: -1, penT: 0 },
-  { key: 'AMBUSHER', kind: 'ahead',  cv: '--warn', fb: '#ffce4d', sc: [1, 1],   pen: 1,  penT: 1500 },
-  { key: 'FLANKER',  kind: 'mirror', cv: '--good', fb: '#5ce08a', sc: [17, 19], pen: 0,  penT: 4200 },
-  { key: 'WANDERER', kind: 'rand',   cv: null,     fb: '#c58cff', sc: [1, 19],  pen: 2,  penT: 7200 },
+  { key: 'CHASER',   kind: 'lock',   pk: 'bad',  fb: '#ff5d6c', sc: [17, 1],  pen: -1, penT: 0 },
+  { key: 'AMBUSHER', kind: 'ahead',  pk: 'warn', fb: '#ffce4d', sc: [1, 1],   pen: 1,  penT: 1500 },
+  { key: 'FLANKER',  kind: 'mirror', pk: 'good', fb: '#5ce08a', sc: [17, 19], pen: 0,  penT: 4200 },
+  { key: 'WANDERER', kind: 'rand',   pk: null,   fb: '#c58cff', sc: [1, 19],  pen: 2,  penT: 7200 },
 ];
 
 function cssVarMM(name, fb) {
@@ -252,6 +253,34 @@ function boxOfMM(canvas) {
   return { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
 }
 
+/* a DPR change (dragging the window to a 1x monitor, an OS display-scale change)
+   leaves the CSS box alone, so neither resize nor ResizeObserver fires — watch the
+   resolution itself and re-arm on the new ratio. Returns its own teardown. */
+function watchDprMM(cb) {
+  if (typeof matchMedia === 'undefined') return function () {};
+  let mq = null, dead = false;
+  function off() {
+    if (!mq) return;
+    if (mq.removeEventListener) mq.removeEventListener('change', hit);
+    else if (mq.removeListener) mq.removeListener(hit);
+    mq = null;
+  }
+  function hit() {
+    if (dead) return;
+    arm();
+    cb();
+  }
+  function arm() {
+    off();
+    if (dead) return;
+    mq = matchMedia('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)');
+    if (mq.addEventListener) mq.addEventListener('change', hit);
+    else if (mq.addListener) mq.addListener(hit);
+  }
+  arm();
+  return function () { dead = true; off(); };
+}
+
 /* attract-mode still frame drawn behind the intro / game-over overlays */
 function drawIdleMM(canvas) {
   const ctx = canvas.getContext('2d');
@@ -297,6 +326,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
   const [level, setLevel] = useStateMM(1);
   const [best, setBest] = useStateMM(readBestMM);
   const scoredRef = useRefMM(false);
+  const preBestRef = useRefMM(0);              // best BEFORE this run — endRun raises best
 
   /* ---------------------------------------------------------------- game loop */
   useEffectMM(() => {
@@ -311,6 +341,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
     let lay = { tile: 8, ox: 0, oy: 0 };
     let walls = { body: [], edge: [] };
     let raf = 0, running = true, hiddenPause = false, userPause = false, last = 0;
+    let needsPaint = true;                     // a paused frame is redrawn once, not 60x/s
     let pal = paletteMM(), palT = 0;
     const prevStyle = canvas.style.touchAction;
     canvas.style.touchAction = 'none';
@@ -352,6 +383,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
           def: def, i: i,
           c: slot.c, r: slot.r, d: out ? 3 : 0, prog: 0,
           mode: out ? 'run' : 'pen',
+          eaten: false,                        // drives the bodiless-eyes look, NOT mode 'pen'
           penT: out ? 0 : Math.max(300, def.penT - (g.level - 1) * 400),
         };
       });
@@ -379,6 +411,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
       ctx.imageSmoothingEnabled = false;
       lay = layoutMM(w, h);
       walls = buildWallsMM(lay);
+      needsPaint = true;                       // the backing store was just cleared
     }
 
     /* ---------------------------------------------------------- mechanics */
@@ -572,6 +605,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
           addScore(pts);
           g.pops.push({ x: q.x, y: q.y, txt: String(pts), t: 950 });
           gh.mode = 'back';
+          gh.eaten = true;
           gh.prog = 0;
           chooseBack(gh);
           g.freeze = 420;
@@ -606,11 +640,9 @@ function MazeMuncher({ onClose, sfx, onScore }) {
       cancelAnimationFrame(raf);
       const fin = g.score;
       setScore(fin);
-      setBest(function (b) {
-        const nb = Math.max(b, fin);
-        writeBestMM(nb);
-        return nb;
-      });
+      const nb = Math.max(readBestMM(), fin);
+      writeBestMM(nb);
+      setBest(function (b) { return Math.max(b, nb); });
       if (!scoredRef.current) {
         scoredRef.current = true;
         if (onScore) onScore(fin);
@@ -642,8 +674,8 @@ function MazeMuncher({ onClose, sfx, onScore }) {
         g.pops[i].t -= dt;
         if (g.pops[i].t <= 0) g.pops.splice(i, 1);
       }
-      if (g.freeze > 0) { g.freeze -= dt; return; }
-
+      /* the timers run THROUGH the eat-a-collector freeze — otherwise every catch
+         adds 420ms to the vulnerable window and the promised 6s becomes 7.9s */
       if (g.frightT > 0) {
         g.frightT -= dt;
         if (g.frightT <= 0) { g.frightT = 0; g.chain = 0; }
@@ -655,6 +687,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
           g.ghosts.forEach(function (gh) { if (gh.mode === 'run') reverse(gh, false); });
         }
       }
+      if (g.freeze > 0) { g.freeze -= dt; return; }
 
       const sp = speeds();
       stepPlayer(sp.pl * f);
@@ -664,7 +697,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
         const gh = g.ghosts[i];
         if (gh.mode === 'pen') {
           gh.penT -= dt;
-          if (gh.penT <= 0) { gh.mode = 'exit'; gh.prog = 0; chooseExit(gh); }
+          if (gh.penT <= 0) { gh.mode = 'exit'; gh.eaten = false; gh.prog = 0; chooseExit(gh); }
           continue;
         }
         let s = sp.gh;
@@ -724,8 +757,8 @@ function MazeMuncher({ onClose, sfx, onScore }) {
         let bob = 0;
         if (gh.mode === 'pen') bob = (Math.floor(g.t / 220) % 2 ? 1 : -1) * Math.max(1, t * 0.1);
         const cx = lay.ox + (gx + 0.5) * t, cy = lay.oy + (gy + 0.5) * t + bob;
-        const eyes = gh.mode === 'back' || gh.mode === 'pen';
-        let col = gh.def.cv ? cssVarMM(gh.def.cv, gh.def.fb) : gh.def.fb;
+        const eyes = gh.mode === 'back' || (gh.mode === 'pen' && gh.eaten);
+        let col = (gh.def.pk && pal[gh.def.pk]) || gh.def.fb;
         if (!eyes && g.frightT > 0) {
           col = (g.frightT < 1800 && Math.floor(g.t / 130) % 2) ? '#ffffff' : FRIGHT_MM;
         }
@@ -820,7 +853,11 @@ function MazeMuncher({ onClose, sfx, onScore }) {
     function frame(now) {
       if (!running) return;
       raf = requestAnimationFrame(frame);
-      if (hiddenPause || userPause) { last = now; draw(); return; }
+      if (hiddenPause || userPause) {
+        last = now;
+        if (needsPaint) { needsPaint = false; draw(); }
+        return;
+      }
       let dt = now - last;
       last = now;
       if (!(dt > 0)) dt = 16.667;
@@ -830,8 +867,16 @@ function MazeMuncher({ onClose, sfx, onScore }) {
     }
 
     /* --------------------------------------------------------------- input */
+    /* the handler is on window, so a focused control (the HUD ✕, a tweaks slider)
+       would lose Space / the arrow keys to preventDefault — leave those alone */
+    function onCtl(t) {
+      if (!t || !t.tagName) return false;
+      if (t.isContentEditable) return true;
+      return /^(BUTTON|INPUT|SELECT|TEXTAREA|A|OPTION)$/.test(t.tagName);
+    }
     const kd = function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (onCtl(e.target)) return;
       const k = e.key;
       let d = -1;
       if (k === 'ArrowUp' || k === 'w' || k === 'W') d = 0;
@@ -847,6 +892,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
       if (k === 'p' || k === 'P') {
         userPause = !userPause;
         last = performance.now();
+        needsPaint = true;
         if (sfx && sfx.hover) sfx.hover();
       } else if (k === ' ') {
         e.preventDefault();
@@ -865,6 +911,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
     const onVis = function () {
       hiddenPause = !!document.hidden;
       last = performance.now();
+      needsPaint = true;
     };
 
     /* ---------------------------------------------------------------- boot */
@@ -886,6 +933,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
       ro = new ResizeObserver(function () { size(); });
       ro.observe(canvas);
     }
+    const offDpr = watchDprMM(function () { size(); });
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', kd);
     document.addEventListener('visibilitychange', onVis);
@@ -900,6 +948,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
       running = false;
       cancelAnimationFrame(raf);
       if (ro) ro.disconnect();
+      offDpr();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('keydown', kd);
       document.removeEventListener('visibilitychange', onVis);
@@ -923,10 +972,12 @@ function MazeMuncher({ onClose, sfx, onScore }) {
       ro = new ResizeObserver(paint);          // catches a late/zero-size layout
       ro.observe(canvas);
     }
+    const offDpr = watchDprMM(paint);
     window.addEventListener('resize', paint);
     return function () {
       clearTimeout(id);
       if (ro) ro.disconnect();
+      offDpr();
       window.removeEventListener('resize', paint);
     };
   }, [phase]);
@@ -942,6 +993,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
   const startPlay = () => {
     if (sfx) { sfx.warm && sfx.warm(); sfx.select && sfx.select(); }
     scoredRef.current = false;
+    preBestRef.current = readBestMM();
     setScore(0);
     setLives(3);
     setLevel(1);
@@ -984,7 +1036,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
               <div className="mg-title">RECLAIMED</div>
               <p className="mg-rules">
                 FINAL SCORE <b className="g">{pad(score)}</b> · LEVEL <b className="y">{level}</b><br />
-                {score >= best && score > 0
+                {score > preBestRef.current && score > 0
                   ? <span className="y">★ NEW HIGH SCORE ★</span>
                   : <>BEST {pad(best)}</>}
               </p>
