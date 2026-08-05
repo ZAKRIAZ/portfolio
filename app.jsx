@@ -48,6 +48,8 @@ function App() {
   const [xp, setXp] = useState(loadXp);
   const [leveling, setLeveling] = useState(false);
   const busy = useRef(false);
+  const runStart = useRef(0);      // speedrun clock, 0 = disqualified
+  const autoNav = useRef(false);   // true while attract mode is driving
 
   const sfx = window.SFX;
 
@@ -75,8 +77,9 @@ function App() {
       setTimeout(() => setLeveling(false), 1600);
       sfx.levelup();
       pushToast({ icon: '\u25b2', kicker: 'LEVEL UP', title: 'REACHED LV.' + xpToLevel(after) });
+      if (xpToLevel(after) >= 4) setTimeout(() => unlock('veteran'), 1000);
     }
-  }, [pushToast]);
+  }, [pushToast, unlock]);
 
   useEffect(() => { sfx.setMuted(!t.sound); }, [t.sound]);
 
@@ -90,22 +93,57 @@ function App() {
 
   const ms = (base) => base * (parseFloat(t.animSpeed) || 1);
 
-  // returning-player achievement (>1 play) — fire once after boot
+  // returning-player + night-shift achievements — fire once after boot
   useEffect(() => {
     if (phase !== 'ready') return;
     if (PLAY_COUNT > 1) { setTimeout(() => unlock('returning'), 700); setTimeout(() => addXp(10, 'return'), 900); }
+    if (new Date().getHours() < 5) { setTimeout(() => unlock('night_shift'), 1400); setTimeout(() => addXp(10, 'night'), 1600); }
   }, [phase]);
 
-  // tinkerer achievement — when tweaks panel becomes visible
+  // tinkerer — first settings change, from the Options screen or the Design tweaks panel
+  const tinkered = useRef(false);
+  const markTinkered = useCallback(() => {
+    if (tinkered.current) return;
+    tinkered.current = true;
+    unlock('tinkerer');
+    addXp(15, 'tweaks');
+  }, [unlock, addXp]);
+
   useEffect(() => {
-    let awarded = false;
     const check = () => {
       const panel = document.querySelector('.twk-panel');
-      if (panel && panel.offsetParent !== null && !awarded) { awarded = true; unlock('tinkerer'); addXp(15, 'tweaks'); }
+      if (panel && panel.offsetParent !== null) markTinkered();
     };
     const obs = new MutationObserver(check);
     obs.observe(document.body, { childList: true, subtree: true });
     return () => obs.disconnect();
+  }, [markTinkered]);
+
+  // full spectrum — every accent colour tried in one visit
+  const accentsSeen = useRef(new Set());
+  const spectrumDone = useRef(false);
+  useEffect(() => {
+    accentsSeen.current.add(t.accent);
+    if (accentsSeen.current.size >= ACCENTS.length && !spectrumDone.current) {
+      spectrumDone.current = true;
+      unlock('spectrum');
+      addXp(15, 'spectrum');
+    }
+  }, [t.accent, unlock, addXp]);
+
+  // handshake — visitor actually opened one of my links
+  const shookHands = useRef(false);
+  useEffect(() => {
+    const onClick = (e) => {
+      if (shookHands.current || !e.target.closest) return;
+      const a = e.target.closest('a[href^="mailto:"], a[href*="linkedin.com"], a[href*="x.com/"], a[href*="github.com"]');
+      if (!a) return;
+      shookHands.current = true;
+      unlock('handshake');
+      addXp(15, 'handshake');
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
   }, [unlock, addXp]);
 
   // music: start after boot, follow the music tweak + mute
@@ -132,8 +170,18 @@ function App() {
       setVisited(nextVisited);
       setTimeout(() => sfx.coin(), ms(220));
       addXp(25, 'level');
-      if (nextVisited.size === 1) setTimeout(() => unlock('first_step'), ms(420));
-      if (ATTRACT_ORDER.every((k) => nextVisited.has(k))) setTimeout(() => unlock('completionist'), ms(560));
+      if (nextVisited.size === 1) {
+        runStart.current = Date.now();
+        setTimeout(() => unlock('first_step'), ms(420));
+      }
+      // a hands-off attract-mode tour shouldn't earn the speedrun
+      if (autoNav.current) runStart.current = 0;
+      if (ATTRACT_ORDER.every((k) => nextVisited.has(k))) {
+        setTimeout(() => unlock('completionist'), ms(560));
+        if (runStart.current && Date.now() - runStart.current < 60000) {
+          setTimeout(() => { unlock('speedrun'); addXp(30, 'speedrun'); }, ms(1000));
+        }
+      }
     }
     setAnim('off');                       // collapse current
     setTimeout(() => {
@@ -145,6 +193,18 @@ function App() {
 
   // skip-typing on click inside a sub-screen
   const onScreenClick = () => { if (!busy.current) document.dispatchEvent(new Event('zb:skiptype')); };
+
+  // deep dive — scrolled a level to the bottom
+  const dived = useRef(false);
+  const onScreenScroll = (e) => {
+    if (dived.current || screen === 'menu') return;
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.clientHeight < 16) return;   // nothing meaningful to scroll, no credit
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - 6) return;
+    dived.current = true;
+    unlock('deep_dive');
+    addXp(10, 'deep_dive');
+  };
 
   // keyboard: digits jump, Esc back (only when playing)
   useEffect(() => {
@@ -166,20 +226,27 @@ function App() {
   };
 
   // attract mode — when idle on the menu, auto-cycle levels like an arcade demo
-  const attractIdx = useRef(0);
+  const watchedAttract = useRef(false);
   useAttract({
     enabled: phase === 'ready' && !secret,
     idleMs: 16000,
     cycleMs: 4600,
     onTick: useCallback(() => {
       if (busy.current || secret) return;
+      if (!watchedAttract.current) {
+        watchedAttract.current = true;
+        unlock('attract');
+        addXp(10, 'attract');
+      }
       const cur = screenRef.current;
       // cycle menu -> about -> ... -> contact -> menu ...
       const order = ['menu', ...ATTRACT_ORDER];
       const i = order.indexOf(cur);
       const next = order[(i + 1) % order.length];
+      autoNav.current = true;
       go(next);
-    }, [go, secret]),
+      setTimeout(() => { autoNav.current = false; }, 0);
+    }, [go, secret, unlock, addXp]),
   });
 
   // tab title flasher
@@ -209,8 +276,11 @@ function App() {
     setVisited(new Set());
   };
 
+  // Options changes count as tinkering
+  const setTweakTracked = useCallback((k, v) => { markTinkered(); setTweak(k, v); }, [markTinkered, setTweak]);
+
   const screenProps = screen === 'options'
-    ? { sfx, t, setTweak, cam, setCam, earned, xp, level, plays: PLAY_COUNT, onReset: resetSave }
+    ? { sfx, t, setTweak: setTweakTracked, cam, setCam, earned, xp, level, plays: PLAY_COUNT, onReset: resetSave }
     : { sfx };
 
   return (
@@ -258,7 +328,7 @@ function App() {
 
         <div className="screen-area" onClick={onScreenClick}>
           <div key={screen} className={tubeCls}>
-            <div className={'screen' + (isMenu ? ' is-menu' : '')}>
+            <div className={'screen' + (isMenu ? ' is-menu' : '')} onScroll={onScreenScroll}>
               {isMenu
                 ? <><IntegrationMap paused={anim !== ''} /><TitleScreen onPick={go} sfx={sfx} /></>
                 : <Comp {...screenProps} />}
@@ -271,7 +341,11 @@ function App() {
       {phase === 'boot' && <BootScreen onStart={startGame} sfx={sfx} />}
       {secret && <SecretPanel onClose={() => { sfx.back(); setSecret(false); }} onPlay={() => { sfx.select(); setSecret(false); setMinigame(true); }} />}
       {minigame && <PacketCatch sfx={sfx} onClose={() => { sfx.back(); setMinigame(false); }}
-        onScore={(s) => { unlock('konami'); addXp(20, 'minigame'); if (s >= 30) addXp(20, 'highscore'); }} />}
+        onScore={(s) => {
+          unlock('coin_op');
+          addXp(20, 'minigame');
+          if (s >= 30) { setTimeout(() => unlock('high_score'), 900); addXp(20, 'highscore'); }
+        }} />}
       <GestureControl enabled={cam} sfx={sfx} onDisable={() => setCam(false)}
         onFirstTrack={() => { unlock('gesture'); addXp(20, 'gesture'); }} />
       <ToastStack toasts={toasts} />

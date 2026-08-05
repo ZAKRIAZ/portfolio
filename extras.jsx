@@ -50,12 +50,26 @@ function ToastStack({ toasts }) {
    Achievement definitions + persistence
    --------------------------------------------------------- */
 const ACHIEVEMENTS = {
-  first_step:  { icon: '▸', title: 'FIRST STEPS', desc: 'Entered your first level.' },
+  /* exploring */
+  first_step:    { icon: '▸', title: 'FIRST STEPS',   desc: 'Entered your first level.' },
   completionist: { icon: '✦', title: '100% COMPLETE', desc: 'Visited every level.' },
-  konami:      { icon: '✪', title: 'SECRET FOUND', desc: 'Entered the Konami code.' },
-  tinkerer:    { icon: '⚙', title: 'TINKERER', desc: 'Opened the Tweaks panel.' },
-  gesture:     { icon: '◉', title: 'HANDS ON', desc: 'Controlled the menu by camera.' },
-  returning:   { icon: '↺', title: 'PLAYER ONE', desc: 'Came back for another play.' },
+  speedrun:      { icon: '⏱', title: 'SPEEDRUN',      desc: 'Cleared all five levels in under a minute.' },
+  deep_dive:     { icon: '⤓', title: 'DEEP DIVE',     desc: 'Read a level all the way to the bottom.' },
+  /* secrets */
+  konami:        { icon: '✪', title: 'SECRET FOUND',  desc: 'Entered the Konami code.' },
+  coin_op:       { icon: '◈', title: 'COIN-OP',       desc: 'Played a round of Packet Catch.' },
+  high_score:    { icon: '★', title: 'PACKET MASTER', desc: 'Scored 30 or more in Packet Catch.' },
+  /* tinkering */
+  tinkerer:      { icon: '⚙', title: 'TINKERER',      desc: 'Changed a setting in Options.' },
+  spectrum:      { icon: '◐', title: 'FULL SPECTRUM', desc: 'Tried every accent colour.' },
+  gesture:       { icon: '◉', title: 'HANDS ON',      desc: 'Controlled the menu by camera.' },
+  /* patience + timing */
+  attract:       { icon: '⧗', title: 'ATTRACT MODE',  desc: 'Stood back and watched the demo reel.' },
+  night_shift:   { icon: '☾', title: 'NIGHT SHIFT',   desc: 'Dropped by between midnight and 5am.' },
+  returning:     { icon: '↺', title: 'PLAYER ONE',    desc: 'Came back for another play.' },
+  veteran:       { icon: '⬢', title: 'VETERAN',       desc: 'Reached LV.4.' },
+  /* the one that matters */
+  handshake:     { icon: '✉', title: 'HANDSHAKE',     desc: 'Opened one of my links. Say hello?' },
 };
 
 function loadEarned() {
