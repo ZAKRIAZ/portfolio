@@ -953,7 +953,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
     <div className="mg" onClick={(e) => { if (e.target.classList.contains('mg')) onClose(); }}>
       <div className="mg-card">
         <div className="mg-hud">
-          <span className="mg-kicker">MAZE MUNCHER</span>
+          <span className="mg-kicker">PAC-MAN</span>
           <div className="mg-stats">
             <span>SCORE <b>{pad(score)}</b></span>
             <span className={lives <= 1 ? 'mg-time low' : 'mg-time'}>LIVES <b>{Math.max(0, lives)}</b></span>
@@ -968,7 +968,7 @@ function MazeMuncher({ onClose, sfx, onScore }) {
 
           {phase === 'intro' && (
             <div className="mg-overlay">
-              <div className="mg-title">MAZE MUNCHER</div>
+              <div className="mg-title">PAC-MAN</div>
               <p className="mg-rules">
                 You are a data packet in the cache. Eat every record <b className="g">▪</b> — 10 pts.<br />
                 A flush token <b className="y">◼</b> is 50 and leaves the garbage collectors

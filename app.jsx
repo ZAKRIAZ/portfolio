@@ -293,7 +293,11 @@ function App() {
   const xpPct = ((xp % XP_PER_LEVEL) / XP_PER_LEVEL) * 100;
 
   const resetSave = () => {
-    try { localStorage.removeItem('zb_xp'); localStorage.removeItem('zb_plays'); localStorage.removeItem('zb_pc_best'); } catch (e) {}
+    // every cabinet high score too, or "erase all progress" quietly lies
+    try {
+      ['zb_xp', 'zb_plays', 'zb_pc_best', 'zb_bs_best', 'zb_mm_best']
+        .forEach((k) => localStorage.removeItem(k));
+    } catch (e) {}
     resetEarned();
     xpRef.current = 0;
     setXp(0);
