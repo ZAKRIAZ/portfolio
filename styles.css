@@ -1232,6 +1232,16 @@ html.no-entrance .screen:not(.is-menu) > div > * {
   opacity: 1 !important;
   transform: none !important;
 }
+/* Same trap, worse consequence, for the modals: .mg-card / .secret-card open with
+   the tvOn scaleY animation, so while it's frozen the card is ~0.4% tall — and a
+   game measuring its canvas then gets a 2x2 backing store instead of a playfield. */
+html.no-entrance .mg-card,
+html.no-entrance .secret-card,
+html.no-entrance .boot {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
 
 /* 1. Contact cards ran label into value ("EMAILzakaria@lysi.co"):
       both spans were inline, so the label's margin-bottom did nothing. */

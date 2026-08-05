@@ -43,7 +43,8 @@ function App() {
   const [anim, setAnim] = useState('');          // '' | 'off' | 'on'
   const [visited, setVisited] = useState(() => new Set());
   const [secret, setSecret] = useState(false);
-  const [minigame, setMinigame] = useState(false);
+  const [minigame, setMinigame] = useState(null);   // null | 'packet' | 'blocks' | 'maze'
+  const gamesPlayed = useRef(new Set());
   const [cam, setCam] = useState(false);
   const [xp, setXp] = useState(loadXp);
   const [leveling, setLeveling] = useState(false);
@@ -190,6 +191,29 @@ function App() {
       setTimeout(() => { setAnim(''); busy.current = false; }, ms(320));
     }, ms(190));
   }, [screen, visited, t.animSpeed, unlock, addXp]);
+
+  /* One place where a finished run turns into XP + achievements, for whichever
+     cabinet was playing. Games report only a final score, so the per-game
+     awards are score thresholds rather than in-game events. */
+  const onGameOver = useCallback((id, score) => {
+    const s = Number(score) || 0;
+    addXp(20, 'minigame');
+
+    if (id === 'packet') {
+      unlock('coin_op');
+      if (s >= 30) { setTimeout(() => unlock('high_score'), 900); addXp(20, 'highscore'); }
+    } else if (id === 'blocks') {
+      if (s >= 2000) { setTimeout(() => unlock('line_cook'), 900); addXp(20, 'blocks'); }
+    } else if (id === 'maze') {
+      if (s >= 2000) { setTimeout(() => unlock('cache_cleaner'), 900); addXp(20, 'maze'); }
+    }
+
+    gamesPlayed.current.add(id);
+    if (gamesPlayed.current.size >= CABINET.length) {
+      setTimeout(() => unlock('full_arcade'), 1500);
+      addXp(25, 'arcade');
+    }
+  }, [unlock, addXp]);
 
   // skip-typing on click inside a sub-screen
   const onScreenClick = () => { if (!busy.current) document.dispatchEvent(new Event('zb:skiptype')); };
@@ -339,13 +363,16 @@ function App() {
       </div>
 
       {phase === 'boot' && <BootScreen onStart={startGame} sfx={sfx} />}
-      {secret && <SecretPanel onClose={() => { sfx.back(); setSecret(false); }} onPlay={() => { sfx.select(); setSecret(false); setMinigame(true); }} />}
-      {minigame && <PacketCatch sfx={sfx} onClose={() => { sfx.back(); setMinigame(false); }}
-        onScore={(s) => {
-          unlock('coin_op');
-          addXp(20, 'minigame');
-          if (s >= 30) { setTimeout(() => unlock('high_score'), 900); addXp(20, 'highscore'); }
-        }} />}
+      {secret && <SecretPanel onClose={() => { sfx.back(); setSecret(false); }}
+        onPlay={(id) => { sfx.select(); setSecret(false); setMinigame(id); }} />}
+      {minigame && (() => {
+        const cab = CABINET.find((c) => c.id === minigame);
+        const Game = cab && window[cab.comp];
+        // a game file that failed to load must not blank the page
+        if (!Game) return null;
+        const close = () => { sfx.back(); setMinigame(null); };
+        return <Game sfx={sfx} onClose={close} onScore={(s) => onGameOver(minigame, s)} />;
+      })()}
       <GestureControl enabled={cam} sfx={sfx} onDisable={() => setCam(false)}
         onFirstTrack={() => { unlock('gesture'); addXp(20, 'gesture'); }} />
       <ToastStack toasts={toasts} />

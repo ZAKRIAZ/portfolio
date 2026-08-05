@@ -171,7 +171,8 @@ function OptionsScreen({ sfx, t, setTweak, cam, setCam, earned, xp, level, plays
                 <span className="achv-ico">{has ? a.icon : '?'}</span>
                 <span className="achv-text">
                   <span className="achv-name">{has ? a.title : 'LOCKED'}</span>
-                  <span className="achv-desc">{a.desc}</span>
+                  {/* locked entries show a nudge instead of the answer, where one exists */}
+                  <span className="achv-desc">{has ? a.desc : (a.hint || a.desc)}</span>
                 </span>
               </div>
             );

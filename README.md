@@ -18,9 +18,14 @@ sequence, and five "levels" instead of five sections.
 - **Integration map** — canvas hero behind the menu, animating data packets between NetSuite,
   Shopify, Amazon, Walmart, Salesforce and EDI
 - **Chiptune + SFX** — generated live with the Web Audio API; no audio files
-- **Achievements & XP** — persisted in `localStorage`, with a reset from Options
+- **Achievements & XP** — 18 achievements persisted in `localStorage`, with a reset from Options
 - **Attract mode** — auto-cycles the levels after 16s idle, like an arcade demo reel
-- **Hidden minigame** — `↑ ↑ ↓ ↓ ← → ← → B A` unlocks DEV MODE, which launches *Packet Catch*
+- **A hidden three-game cabinet** — `↑ ↑ ↓ ↓ ← → ← → B A` unlocks DEV MODE and its INSERT COIN row:
+  - *Packet Catch* — catch good data, dodge corrupted packets
+  - *Tetris* — 10×20 well, seven pieces, bag randomiser, wall kicks, lock delay
+  - *Pac-Man* — original maze, four collectors with distinct chase personalities, power tokens
+  All three are hand-written canvas games sharing the same modal chrome. If you can't find the
+  code, the menu eventually nudges you toward it.
 - **Gesture control** (opt-in) — point and pinch to navigate with your webcam, via MediaPipe
   hand landmarks. Off by default; nothing is uploaded, tracking runs in the browser.
 
@@ -61,6 +66,8 @@ with subresource integrity, and everything else is hand-written:
 | `fx.jsx` | Boot screen, segmented typewriter |
 | `extras.jsx` | Achievements, toasts, Konami, attract mode |
 | `minigame.jsx` | *Packet Catch* |
+| `tetris.jsx` | *Tetris* |
+| `pacman.jsx` | *Pac-Man* |
 | `gestures.jsx` | Webcam hand-gesture control |
 | `audio.js` | Web Audio chiptune engine and SFX |
 | `styles.css` | The whole pixel/CRT design system |

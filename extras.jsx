@@ -47,6 +47,18 @@ function ToastStack({ toasts }) {
 }
 
 /* ---------------------------------------------------------
+   The cabinet — games hidden behind DEV MODE.
+   `comp` is looked up on window at render time, so a game
+   file that fails to load degrades to a missing button
+   rather than taking the page down with it.
+   --------------------------------------------------------- */
+const CABINET = [
+  { id: 'packet', label: 'PACKET CATCH', comp: 'PacketCatch', blurb: 'Catch the good data, dodge the corrupted packets.' },
+  { id: 'blocks', label: 'TETRIS',  comp: 'BlockStack',  blurb: 'Stack the falling blocks, clear the lines.' },
+  { id: 'maze',   label: 'PAC-MAN', comp: 'MazeMuncher', blurb: 'Eat the cache, outrun the garbage collectors.' },
+];
+
+/* ---------------------------------------------------------
    Achievement definitions + persistence
    --------------------------------------------------------- */
 const ACHIEVEMENTS = {
@@ -56,9 +68,18 @@ const ACHIEVEMENTS = {
   speedrun:      { icon: '⏱', title: 'SPEEDRUN',      desc: 'Cleared all five levels in under a minute.' },
   deep_dive:     { icon: '⤓', title: 'DEEP DIVE',     desc: 'Read a level all the way to the bottom.' },
   /* secrets */
-  konami:        { icon: '✪', title: 'SECRET FOUND',  desc: 'Entered the Konami code.' },
-  coin_op:       { icon: '◈', title: 'COIN-OP',       desc: 'Played a round of Packet Catch.' },
-  high_score:    { icon: '★', title: 'PACKET MASTER', desc: 'Scored 30 or more in Packet Catch.' },
+  konami:        { icon: '✪', title: 'SECRET FOUND',  desc: 'Entered the Konami code.',
+                   hint: 'The 1988 Contra cheat. Thirty lives. Same ten buttons.' },
+  coin_op:       { icon: '◈', title: 'COIN-OP',       desc: 'Played a round of Packet Catch.',
+                   hint: 'There is a cabinet behind the cheat code.' },
+  high_score:    { icon: '★', title: 'PACKET MASTER', desc: 'Scored 30 or more in Packet Catch.',
+                   hint: 'The $ packets are worth triple.' },
+  line_cook:     { icon: '▤', title: 'LINE COOK',     desc: 'Scored 2,000 or more in Tetris.',
+                   hint: 'Clear four rows at once with the long straight piece.' },
+  cache_cleaner: { icon: '◕', title: 'CACHE CLEANER', desc: 'Scored 2,000 or more in Pac-Man.',
+                   hint: 'Power pellets first, then hunt the collectors.' },
+  full_arcade:   { icon: '⛁', title: 'FULL ARCADE',   desc: 'Played all three cabinet games.',
+                   hint: 'The cheat code opens more than one machine.' },
   /* tinkering */
   tinkerer:      { icon: '⚙', title: 'TINKERER',      desc: 'Changed a setting in Options.' },
   spectrum:      { icon: '◐', title: 'FULL SPECTRUM', desc: 'Tried every accent colour.' },
@@ -192,8 +213,19 @@ function SecretPanel({ onClose, onPlay }) {
           <div className="cred-row"><span>STATUS</span><b className="blink-soft">OPEN TO WORK</b></div>
         </div>
         <p className="secret-foot">You found the secret. Tell me in your message and I'll know you're thorough. ▸ ESC TO CLOSE</p>
+        {onPlay && (
+          <>
+            <div className="secret-kicker" style={{ marginTop: 18, marginBottom: 10 }}>◈ INSERT COIN ◈</div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {CABINET.map((c) => (
+                <button key={c.id} className="btn accent" onClick={() => onPlay(c.id)} title={c.blurb}>
+                  ► {c.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
-          {onPlay && <button className="btn accent" onClick={onPlay}>► PLAY: PACKET CATCH</button>}
           <button className="btn ghost" onClick={onClose}>CONTINUE</button>
         </div>
       </div>
@@ -203,5 +235,5 @@ function SecretPanel({ onClose, onPlay }) {
 
 Object.assign(window, {
   PLAY_COUNT, useToasts, ToastStack, ACHIEVEMENTS, useAchievements,
-  useKonami, useAttract, SecretPanel,
+  useKonami, useAttract, SecretPanel, CABINET,
 });

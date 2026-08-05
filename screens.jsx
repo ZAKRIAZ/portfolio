@@ -25,6 +25,15 @@ const SKILLS = [
 ];
 const MAX_LV = 7;
 
+/* Menu hint line. Cycles while the cheat code is still undiscovered — the last
+   two name the code without spelling it, so there's still something to find. */
+const HINT_LINES = [
+  '▸ ↑ ↓ + ENTER · OR CLICK A LEVEL ◂',
+  '▸ ↑ ↓ + ENTER · OR CLICK A LEVEL ◂',
+  '▸ THIS CABINET TAKES THE OLD CHEAT CODE ◂',
+  '▸ THE ONE FROM CONTRA. THIRTY LIVES. ◂',
+];
+
 const EXPERIENCE = [
   { title: 'Integration Developer', org: 'LYSI', date: 'MAY 2024 — PRESENT', loc: 'RABAT',
     body: 'Design and maintain integrations & automated data flows between business applications using Celigo, Workato and Orderful — connecting NetSuite, Salesforce, Shopify, Amazon and Walmart through REST APIs and EDI. I eliminate manual work and keep business data flowing reliably.' },
@@ -110,6 +119,18 @@ function TitleScreen({ onPick, sfx }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  /* The cabinet games are hidden behind the Konami code, which nobody finds by
+     accident. Rotate a nudge through the hint line — name the code, don't spell
+     it out, so discovering it still feels earned. Skips the tease once found. */
+  const [nudge, setNudge] = React.useState(0);
+  React.useEffect(() => {
+    let found = false;
+    try { found = (localStorage.getItem('zb_achv') || '').includes('konami'); } catch (e) {}
+    if (found) return;
+    const iv = setInterval(() => setNudge((n) => (n + 1) % HINT_LINES.length), 7000);
+    return () => clearInterval(iv);
+  }, []);
+
   return (
     <div className="title-wrap">
       <div className="title-badge">RABAT, MOROCCO · OPEN TO REMOTE</div>
@@ -133,7 +154,7 @@ function TitleScreen({ onPick, sfx }) {
         ))}
       </ul>
 
-      <div className="press-start"><span className="blink">▸ ↑ ↓ + ENTER · OR CLICK A LEVEL ◂</span></div>
+      <div className="press-start"><span className="blink">{HINT_LINES[nudge]}</span></div>
 
       <div className="menu-foot">
         <a className="foot-link" href={LINKS.linkedin} target="_blank" rel="noreferrer">LINKEDIN</a>
