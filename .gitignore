@@ -1,0 +1,8 @@
+# macOS
+.DS_Store
+
+# Claude Design workspace artifacts
+.thumbnail
+
+# superseded early prototype
+_simple_backup/
